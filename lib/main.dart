@@ -79,7 +79,10 @@ class MyApp extends StatelessWidget {
         ),
         // If registered, show WebView. Else, show Registration Screen.
         home: isRegistered 
-            ? const WebViewContainer() 
+            ? WebViewContainer(
+                apiService: apiService,
+                syncManager: syncManager,
+              ) 
             : RegistrationScreen(
                 apiService: apiService, 
                 syncManager: syncManager,

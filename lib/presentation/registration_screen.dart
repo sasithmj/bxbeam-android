@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:mac_address/mac_address.dart';
 import 'dart:io';
 import 'package:device_info_plus/device_info_plus.dart';
 import '../data/services/api_service.dart';
@@ -26,7 +25,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _locationController = TextEditingController();
-  
+
   String _macAddress = 'Loading...';
   List<PlantCodeDto> _plantCodes = [];
   String? _selectedPlantCode;
@@ -41,20 +40,19 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
   Future<void> _loadInitialData() async {
     try {
-      // Load MAC Address
-      String mac = 'UNKNOWN_MAC';
+      // Load Device Identifier
+      String mac = 'UNKNOWN_DEVICE_ID';
       try {
-        mac = await GetMac.macAddress;
-      } catch (e) {
-        // Ignored
-      }
-      
-      if (mac == 'UNKNOWN_MAC' || mac.isEmpty || mac == '02:00:00:00:00:00') {
         final deviceInfo = DeviceInfoPlugin();
         if (Platform.isAndroid) {
           final androidInfo = await deviceInfo.androidInfo;
           mac = androidInfo.id;
+        } else if (Platform.isIOS) {
+          final iosInfo = await deviceInfo.iosInfo;
+          mac = iosInfo.identifierForVendor ?? 'UNKNOWN_IOS';
         }
+      } catch (e) {
+        print('Failed to get device identifier: $e');
       }
 
       // Load Plant Codes
@@ -77,39 +75,67 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
   Future<void> _registerDevice() async {
     if (!_formKey.currentState!.validate()) return;
-    
+
     setState(() {
       _isRegistering = true;
     });
 
     try {
-      final newDevice = DeviceDto(
-        scrId: '',
-        scrName: _nameController.text,
-        scrLoc: _locationController.text,
-        ipAddress: '0.0.0.0',
-        macAddress: _macAddress,
-        createdDate: DateTime.now(),
-        scrStatus: 'SC1',
-        onStatus: 'Offline',
-        plantCode: _selectedPlantCode ?? 'KT01',
-      );
+      // 1. Check if the device is already registered under this MAC
+      final existingDevices = await widget.apiService.getRegisteredDevice(_macAddress);
 
-      final screenId = await widget.apiService.registerDevice(newDevice);
-      
-      // Start the sync loop with the new screen ID
+      String screenId = '';
+      if (existingDevices.isNotEmpty) {
+        screenId = existingDevices.first.scrId;
+        print("Device already registered on server. Logging in directly with Screen ID: $screenId");
+      } else {
+        final newDevice = DeviceDto(
+          scrId: '',
+          scrName: _nameController.text.trim(),
+          scrLoc: _locationController.text.trim(),
+          ipAddress: '0.0.0.0',
+          macAddress: _macAddress,
+          createdDate: DateTime.now(),
+          scrStatus: 'SC1',
+          onStatus: 'Offline',
+          plantCode: _selectedPlantCode ?? 'KT01',
+        );
+
+        final result = await widget.apiService.registerDevice(newDevice);
+
+        if (result.toLowerCase() == 'ok') {
+          // Query the registered device list by MAC to get the newly generated screen ID
+          final devices = await widget.apiService.getRegisteredDevice(_macAddress);
+          if (devices.isNotEmpty) {
+            screenId = devices.first.scrId;
+          } else {
+            throw Exception('Device registered successfully, but could not retrieve Screen ID from server.');
+          }
+        } else if (result.startsWith('SR')) {
+          screenId = result;
+        } else {
+          throw Exception('Invalid registration response: $result');
+        }
+      }
+
+      // Start the sync loop with the screen ID
       await widget.syncManager.setScreenIdAndStart(screenId);
 
       if (mounted) {
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const WebViewContainer()),
+          MaterialPageRoute(
+            builder: (context) => WebViewContainer(
+              apiService: widget.apiService,
+              syncManager: widget.syncManager,
+            ),
+          ),
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Registration failed: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Registration failed: $e')));
       }
     } finally {
       if (mounted) {
@@ -123,9 +149,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     return Scaffold(
@@ -148,11 +172,17 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                       children: [
                         const Text(
                           'Device Setup',
-                          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 24),
-                        Text('MAC Address / ID: $_macAddress', style: const TextStyle(color: Colors.grey)),
+                        Text(
+                          'MAC Address / ID: $_macAddress',
+                          style: const TextStyle(color: Colors.grey),
+                        ),
                         const SizedBox(height: 24),
                         TextFormField(
                           controller: _nameController,
@@ -160,7 +190,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                             labelText: 'Screen Name',
                             border: OutlineInputBorder(),
                           ),
-                          validator: (value) => value == null || value.isEmpty ? 'Required' : null,
+                          validator: (value) => value == null || value.isEmpty
+                              ? 'Required'
+                              : null,
                         ),
                         const SizedBox(height: 16),
                         TextFormField(
@@ -169,7 +201,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                             labelText: 'Screen Location',
                             border: OutlineInputBorder(),
                           ),
-                          validator: (value) => value == null || value.isEmpty ? 'Required' : null,
+                          validator: (value) => value == null || value.isEmpty
+                              ? 'Required'
+                              : null,
                         ),
                         const SizedBox(height: 16),
                         DropdownButtonFormField<String>(
@@ -189,7 +223,8 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                               _selectedPlantCode = value;
                             });
                           },
-                          validator: (value) => value == null ? 'Required' : null,
+                          validator: (value) =>
+                              value == null ? 'Required' : null,
                         ),
                         const SizedBox(height: 32),
                         ElevatedButton(
@@ -197,9 +232,18 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                           style: ElevatedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 16),
                           ),
-                          child: _isRegistering 
-                              ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                              : const Text('Register & Start', style: TextStyle(fontSize: 16)),
+                          child: _isRegistering
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Text(
+                                  'Register & Start',
+                                  style: TextStyle(fontSize: 16),
+                                ),
                         ),
                       ],
                     ),

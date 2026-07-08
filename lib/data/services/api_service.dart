@@ -62,15 +62,19 @@ $bodyContent
   Future<String> registerDevice(DeviceDto device) async {
     final body =
         '''
-      <Screen_name>\${device.scrName}</Screen_name>
-      <Screen_location>\${device.scrLoc}</Screen_location>
-      <IP>\${device.ipAddress}</IP>
-      <MAC>\${device.macAddress}</MAC>
-      <Screen_sts>\${device.scrStatus}</Screen_sts>
-      <plant_code>\${device.plantCode}</plant_code>
+      <Screen_name>${device.scrName}</Screen_name>
+      <Screen_location>${device.scrLoc}</Screen_location>
+      <IP>${device.ipAddress}</IP>
+      <MAC>${device.macAddress}</MAC>
+      <Screen_sts>${device.scrStatus}</Screen_sts>
+      <plant_code>${device.plantCode}</plant_code>
     ''';
     final responseXml = await _sendSoapRequest('Reg_app', body);
-    return _extractResult(responseXml, 'Reg_appResult');
+    final result = _extractResult(responseXml, 'Reg_appResult');
+    if (result.toLowerCase() != 'ok' && !result.startsWith('SR')) {
+      throw Exception('Registration failed: $result');
+    }
+    return result;
   }
 
   /// 2. Get Plant Code
@@ -116,7 +120,7 @@ $bodyContent
         final List<dynamic> jsonList = jsonDecode(resultText);
         return jsonList.map((e) => ScheduleDto.fromJson(e)).toList();
       } catch (e) {
-        print('Error parsing schedules JSON: $e');
+        throw FormatException('Failed to parse schedules JSON: $resultText');
       }
     }
     return [];
@@ -127,6 +131,20 @@ $bodyContent
     final body = '<screnid>$screenId</screnid>';
     final responseXml = await _sendSoapRequest('get_next_refresh', body);
     final resultText = _extractResult(responseXml, 'get_next_refreshResult');
-    return int.tryParse(resultText) ?? 60; // Fallback to 60s if parsing fails
+    if (resultText.isNotEmpty) {
+      try {
+        final List<dynamic> jsonList = jsonDecode(resultText);
+        if (jsonList.isNotEmpty) {
+          final Map<String, dynamic> data = jsonList.first;
+          final numSeconds = data['NxtRefreshMn'];
+          if (numSeconds is num) {
+            return numSeconds.toInt();
+          }
+        }
+      } catch (e) {
+        print('Error parsing next refresh time: $e');
+      }
+    }
+    return 60; // Fallback to 60s if parsing fails
   }
 }

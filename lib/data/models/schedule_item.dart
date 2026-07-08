@@ -18,6 +18,6 @@ class ScheduleItem {
 
   // Backward compatibility properties for existing app logic
   String get url => source;
-  int get durationSeconds => durMin * 60;
+  int get durationSeconds => durMin; // DurMin field from API is in seconds
   bool get isPriority => scheduleType == "Scheduled";
 }
