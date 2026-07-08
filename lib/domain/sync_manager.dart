@@ -123,19 +123,51 @@ class SyncManager {
     }
   }
 
+  bool _areDateTimesDifferent(DateTime? a, DateTime? b) {
+    if (a == null && b == null) return false;
+    if (a == null || b == null) return true;
+    return !a.isAtSameMomentAs(b);
+  }
+
   bool _hasPlaylistChanged(List<ScheduleItem> oldItems, List<ScheduleDto> newItems) {
-    if (oldItems.length != newItems.length) return true;
+    if (oldItems.length != newItems.length) {
+      print("Playlist change detected: length differs (${oldItems.length} vs ${newItems.length})");
+      return true;
+    }
     for (int i = 0; i < oldItems.length; i++) {
       final oldItem = oldItems[i];
       final newItem = newItems[i];
-      if (oldItem.scrId != newItem.scrId ||
-          oldItem.type != newItem.type ||
-          oldItem.source != newItem.source ||
-          oldItem.durMin != newItem.durMin ||
-          oldItem.scheduleType != newItem.scheduleType ||
-          oldItem.title != newItem.title ||
-          oldItem.srtOrd != newItem.srtOrd ||
-          oldItem.startTime != newItem.startTime) {
+      
+      if (oldItem.scrId != newItem.scrId) {
+        print("Playlist change detected at index $i: scrId differs (${oldItem.scrId} vs ${newItem.scrId})");
+        return true;
+      }
+      if (oldItem.type != newItem.type) {
+        print("Playlist change detected at index $i: type differs (${oldItem.type} vs ${newItem.type})");
+        return true;
+      }
+      if (oldItem.source != newItem.source) {
+        print("Playlist change detected at index $i: source differs (${oldItem.source} vs ${newItem.source})");
+        return true;
+      }
+      if (oldItem.durMin != newItem.durMin) {
+        print("Playlist change detected at index $i: durMin differs (${oldItem.durMin} vs ${newItem.durMin})");
+        return true;
+      }
+      if (oldItem.scheduleType != newItem.scheduleType) {
+        print("Playlist change detected at index $i: scheduleType differs (${oldItem.scheduleType} vs ${newItem.scheduleType})");
+        return true;
+      }
+      if (oldItem.title != newItem.title) {
+        print("Playlist change detected at index $i: title differs (${oldItem.title} vs ${newItem.title})");
+        return true;
+      }
+      if (oldItem.srtOrd != newItem.srtOrd) {
+        print("Playlist change detected at index $i: srtOrd differs (${oldItem.srtOrd} vs ${newItem.srtOrd})");
+        return true;
+      }
+      if (_areDateTimesDifferent(oldItem.startTime, newItem.startTime)) {
+        print("Playlist change detected at index $i: startTime differs (${oldItem.startTime} vs ${newItem.startTime})");
         return true;
       }
     }
@@ -173,9 +205,9 @@ class SyncManager {
       // Fetch currently cached items from Isar
       final cachedSchedules = await _isarService.getAllSchedules();
 
-      // Sort both arrays by scheduleType and srtOrd to ensure a deterministic comparison
-      cachedSchedules.sort((a, b) => '${a.scheduleType}_${a.srtOrd}'.compareTo('${b.scheduleType}_${b.srtOrd}'));
-      schedules.sort((a, b) => '${a.scheduleType}_${a.srtOrd}'.compareTo('${b.scheduleType}_${b.srtOrd}'));
+      // Sort both arrays deterministically to ensure a stable index-by-index comparison
+      cachedSchedules.sort((a, b) => '${a.scheduleType}_${a.srtOrd}_${a.source}_${a.startTime?.millisecondsSinceEpoch}'.compareTo('${b.scheduleType}_${b.srtOrd}_${b.source}_${b.startTime?.millisecondsSinceEpoch}'));
+      schedules.sort((a, b) => '${a.scheduleType}_${a.srtOrd}_${a.source}_${a.startTime?.millisecondsSinceEpoch}'.compareTo('${b.scheduleType}_${b.srtOrd}_${b.source}_${b.startTime?.millisecondsSinceEpoch}'));
 
       // Only perform database updates and trigger playback bloc reload if there is a change
       if (cachedSchedules.isEmpty || _hasPlaylistChanged(cachedSchedules, schedules)) {
