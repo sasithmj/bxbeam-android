@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
+import 'dart:async';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../data/services/api_service.dart';
@@ -33,11 +34,59 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   String? _selectedPlantCode;
   bool _isLoading = true;
   bool _isRegistering = false;
+  bool _isAlreadyRegistered = false;
+  Timer? _debounceTimer;
 
   @override
   void initState() {
     super.initState();
+    _macController.addListener(_onMacAddressChanged);
     _loadInitialData();
+  }
+
+  void _onMacAddressChanged() {
+    if (_debounceTimer?.isActive ?? false) _debounceTimer!.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 500), () {
+      _checkIfRegistered(_macController.text);
+    });
+  }
+
+  Future<void> _checkIfRegistered(String mac) async {
+    if (mac.trim().isEmpty) return;
+    try {
+      final existingDevices = await widget.apiService.getRegisteredDevice(mac.trim());
+      if (existingDevices.isNotEmpty) {
+        final device = existingDevices.first;
+        setState(() {
+          _nameController.text = device.scrName;
+          _locationController.text = device.scrLoc;
+          _ipController.text = device.ipAddress;
+          
+          if (_plantCodes.any((element) => element.plantCode == device.plantCode)) {
+            _selectedPlantCode = device.plantCode;
+          } else {
+            _plantCodes.add(PlantCodeDto(plantCode: device.plantCode, plantName: device.plantCode));
+            _selectedPlantCode = device.plantCode;
+          }
+          _isAlreadyRegistered = true;
+        });
+      } else {
+        if (_isAlreadyRegistered) {
+          final ip = await _getLocalIpAddress();
+          setState(() {
+            _nameController.clear();
+            _locationController.clear();
+            _ipController.text = ip;
+            if (_plantCodes.isNotEmpty) {
+              _selectedPlantCode = _plantCodes.first.plantCode;
+            }
+            _isAlreadyRegistered = false;
+          });
+        }
+      }
+    } catch (e) {
+      print('Check registration failed: $e');
+    }
   }
 
   Future<String> _getLocalIpAddress() async {
@@ -77,6 +126,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         if (codes.isNotEmpty) {
           _selectedPlantCode = codes.first.plantCode;
         }
+      });
+      await _checkIfRegistered(mac);
+      setState(() {
         _isLoading = false;
       });
     } catch (e) {
@@ -219,6 +271,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                         const SizedBox(height: 16),
                         TextFormField(
                           controller: _ipController,
+                          enabled: !_isAlreadyRegistered,
                           decoration: const InputDecoration(
                             labelText: 'IP Address',
                             border: OutlineInputBorder(),
@@ -243,6 +296,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                         const SizedBox(height: 16),
                         TextFormField(
                           controller: _nameController,
+                          enabled: !_isAlreadyRegistered,
                           decoration: const InputDecoration(
                             labelText: 'Screen Name',
                             border: OutlineInputBorder(),
@@ -254,6 +308,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                         const SizedBox(height: 16),
                         TextFormField(
                           controller: _locationController,
+                          enabled: !_isAlreadyRegistered,
                           decoration: const InputDecoration(
                             labelText: 'Screen Location',
                             border: OutlineInputBorder(),
@@ -275,11 +330,13 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                               child: Text(plant.plantName),
                             );
                           }).toList(),
-                          onChanged: (value) {
-                            setState(() {
-                              _selectedPlantCode = value;
-                            });
-                          },
+                          onChanged: _isAlreadyRegistered
+                              ? null
+                              : (value) {
+                                  setState(() {
+                                    _selectedPlantCode = value;
+                                  });
+                                },
                           validator: (value) =>
                               value == null ? 'Required' : null,
                         ),
@@ -297,9 +354,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                                     strokeWidth: 2,
                                   ),
                                 )
-                              : const Text(
-                                  'Register & Start',
-                                  style: TextStyle(fontSize: 16),
+                              : Text(
+                                  _isAlreadyRegistered ? 'Login & Start' : 'Register & Start',
+                                  style: const TextStyle(fontSize: 16),
                                 ),
                         ),
                       ],
@@ -316,6 +373,8 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
   @override
   void dispose() {
+    _macController.removeListener(_onMacAddressChanged);
+    _debounceTimer?.cancel();
     _nameController.dispose();
     _locationController.dispose();
     _macController.dispose();
