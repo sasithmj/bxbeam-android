@@ -31,6 +31,20 @@ class IsarService {
     });
   }
 
+  /// Clears all schedules stored in Isar
+  Future<void> clearAllSchedules() async {
+    final isar = await db;
+    await isar.writeTxn(() async {
+      await isar.scheduleItems.clear();
+    });
+  }
+
+  /// Fetches all items in the database
+  Future<List<ScheduleItem>> getAllSchedules() async {
+    final isar = await db;
+    return await isar.scheduleItems.where().findAll();
+  }
+
   /// Fetches items for the Default Loop
   Future<List<ScheduleItem>> getDefaultLoop() async {
     final isar = await db;

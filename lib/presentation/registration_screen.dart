@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:device_info_plus/device_info_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../data/services/api_service.dart';
 import '../domain/sync_manager.dart';
 import '../data/models/dto/device_dto.dart';
@@ -25,8 +26,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _locationController = TextEditingController();
+  final _macController = TextEditingController();
+  final _ipController = TextEditingController();
 
-  String _macAddress = 'Loading...';
   List<PlantCodeDto> _plantCodes = [];
   String? _selectedPlantCode;
   bool _isLoading = true;
@@ -38,28 +40,39 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     _loadInitialData();
   }
 
+  Future<String> _getLocalIpAddress() async {
+    try {
+      final interfaces = await NetworkInterface.list(
+        includeLoopback: false,
+        type: InternetAddressType.IPv4,
+      );
+      for (final interface in interfaces) {
+        for (final address in interface.addresses) {
+          if (!address.isLoopback && address.address.isNotEmpty) {
+            return address.address;
+          }
+        }
+      }
+    } catch (e) {
+      print('Failed to get local IP: $e');
+    }
+    return '0.0.0.0';
+  }
+
   Future<void> _loadInitialData() async {
     try {
-      // Load Device Identifier
-      String mac = 'UNKNOWN_DEVICE_ID';
-      try {
-        final deviceInfo = DeviceInfoPlugin();
-        if (Platform.isAndroid) {
-          final androidInfo = await deviceInfo.androidInfo;
-          mac = androidInfo.id;
-        } else if (Platform.isIOS) {
-          final iosInfo = await deviceInfo.iosInfo;
-          mac = iosInfo.identifierForVendor ?? 'UNKNOWN_IOS';
-        }
-      } catch (e) {
-        print('Failed to get device identifier: $e');
-      }
+      // Load Device Identifier using persistent generator
+      final mac = await SyncManager.getDeviceMac();
+
+      // Load Local IP
+      final ip = await _getLocalIpAddress();
 
       // Load Plant Codes
       final codes = await widget.apiService.getPlantCode();
 
       setState(() {
-        _macAddress = mac;
+        _macController.text = mac;
+        _ipController.text = ip;
         _plantCodes = codes;
         if (codes.isNotEmpty) {
           _selectedPlantCode = codes.first.plantCode;
@@ -80,21 +93,30 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       _isRegistering = true;
     });
 
+    final mac = _macController.text.trim();
+    final ip = _ipController.text.trim();
+
     try {
+      // Save the (potentially edited) device ID permanently to SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('device_mac_address', mac);
+
       // 1. Check if the device is already registered under this MAC
-      final existingDevices = await widget.apiService.getRegisteredDevice(_macAddress);
+      final existingDevices = await widget.apiService.getRegisteredDevice(mac);
 
       String screenId = '';
       if (existingDevices.isNotEmpty) {
         screenId = existingDevices.first.scrId;
-        print("Device already registered on server. Logging in directly with Screen ID: $screenId");
+        print(
+          "Device already registered on server. Logging in directly with Screen ID: $screenId",
+        );
       } else {
         final newDevice = DeviceDto(
           scrId: '',
           scrName: _nameController.text.trim(),
           scrLoc: _locationController.text.trim(),
-          ipAddress: '0.0.0.0',
-          macAddress: _macAddress,
+          ipAddress: ip.isEmpty ? '0.0.0.0' : ip,
+          macAddress: mac,
           createdDate: DateTime.now(),
           scrStatus: 'SC1',
           onStatus: 'Offline',
@@ -105,11 +127,13 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
         if (result.toLowerCase() == 'ok') {
           // Query the registered device list by MAC to get the newly generated screen ID
-          final devices = await widget.apiService.getRegisteredDevice(_macAddress);
+          final devices = await widget.apiService.getRegisteredDevice(mac);
           if (devices.isNotEmpty) {
             screenId = devices.first.scrId;
           } else {
-            throw Exception('Device registered successfully, but could not retrieve Screen ID from server.');
+            throw Exception(
+              'Device registered successfully, but could not retrieve Screen ID from server.',
+            );
           }
         } else if (result.startsWith('SR')) {
           screenId = result;
@@ -179,11 +203,44 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 24),
-                        Text(
-                          'MAC Address / ID: $_macAddress',
-                          style: const TextStyle(color: Colors.grey),
+                        TextFormField(
+                          controller: _macController,
+                          enabled: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Device Identifier',
+                            border: OutlineInputBorder(),
+                            helperText: 'Enter custom ID or use the generated BX ID',
+                            helperStyle: TextStyle(color: Colors.green),
+                          ),
+                          validator: (value) => value == null || value.isEmpty
+                              ? 'Required'
+                              : null,
                         ),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _ipController,
+                          decoration: const InputDecoration(
+                            labelText: 'IP Address',
+                            border: OutlineInputBorder(),
+                            helperText:
+                                'Auto-detected local IP. Edit if incorrect.',
+                          ),
+                          validator: (value) {
+                            if (value == null || value.isEmpty)
+                              return 'Required';
+                            final parts = value.split('.');
+                            if (parts.length != 4)
+                              return 'Enter a valid IPv4 address';
+                            for (final part in parts) {
+                              final num = int.tryParse(part);
+                              if (num == null || num < 0 || num > 255) {
+                                return 'Enter a valid IPv4 address';
+                              }
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
                         TextFormField(
                           controller: _nameController,
                           decoration: const InputDecoration(
@@ -261,6 +318,8 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   void dispose() {
     _nameController.dispose();
     _locationController.dispose();
+    _macController.dispose();
+    _ipController.dispose();
     super.dispose();
   }
 }

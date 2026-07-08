@@ -44,7 +44,7 @@ dependencies:
   xml: ^6.6.1
   shared_preferences: ^2.5.5
   device_info_plus: ^13.1.0
-
+  
 dev_dependencies:
   flutter_test:
     sdk: flutter

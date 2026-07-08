@@ -26,7 +26,7 @@ class PlaybackEngine {
     _priorityQueue = priorityQueue;
     
     // Start the ticker (1s interval) if not already running
-    _ticker ??= Timer.periodic(const Duration(seconds: 10), _onTick);
+    _ticker ??= Timer.periodic(const Duration(seconds: 1), _onTick);
   }
 
   void _onTick(Timer timer) {
