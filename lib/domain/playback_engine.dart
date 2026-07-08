@@ -25,6 +25,11 @@ class PlaybackEngine {
     _defaultLoop = defaultLoop;
     _priorityQueue = priorityQueue;
     
+    if (defaultLoop.isEmpty && priorityQueue.isEmpty) {
+      _currentPlayingItem = null;
+      _currentItemStartTime = null;
+    }
+    
     // Start the ticker (1s interval) if not already running
     _ticker ??= Timer.periodic(const Duration(seconds: 1), _onTick);
   }

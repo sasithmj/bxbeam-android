@@ -234,8 +234,33 @@ class _WebViewContainerState extends State<WebViewContainer> {
                     ),
                   );
                 }
-  
-                // 3. Main WebView 
+
+                // 3. Deactivated State
+                if (state is PlaybackDeactivated) {
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(24.0),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.lock_clock, size: 64, color: Colors.amber),
+                          SizedBox(height: 16),
+                          Text(
+                            'Device deactivated. Contact admin to activate this screen.',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+
+                // 4. Main WebView 
                 // We render the WebView once and use the listener above to drive URL changes.
                 return InAppWebView(
                   initialSettings: InAppWebViewSettings(

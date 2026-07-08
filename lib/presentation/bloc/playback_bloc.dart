@@ -35,6 +35,11 @@ class PlaybackBloc extends Bloc<PlaybackEvent, PlaybackState> {
       final defaultLoop = await _isarService.getDefaultLoop();
       final priorityQueue = await _isarService.getPriorityQueue();
 
+      if (defaultLoop.isEmpty && priorityQueue.isEmpty) {
+        emit(PlaybackDeactivated());
+        return;
+      }
+
       // 2. Feed the schedules into the engine
       _playbackEngine.updateSchedules(
         defaultLoop: defaultLoop,
@@ -63,6 +68,11 @@ class PlaybackBloc extends Bloc<PlaybackEvent, PlaybackState> {
       // For now, we just reload whatever is currently in Isar:
       final defaultLoop = await _isarService.getDefaultLoop();
       final priorityQueue = await _isarService.getPriorityQueue();
+
+      if (defaultLoop.isEmpty && priorityQueue.isEmpty) {
+        emit(PlaybackDeactivated());
+        return;
+      }
 
       _playbackEngine.updateSchedules(
         defaultLoop: defaultLoop,
