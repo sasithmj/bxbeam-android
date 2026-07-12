@@ -4,6 +4,7 @@ import '../../domain/playback_engine.dart';
 import '../../data/services/isar_service.dart';
 import 'playback_event.dart';
 import 'playback_state.dart';
+import '../../core/config.dart';
 
 class PlaybackBloc extends Bloc<PlaybackEvent, PlaybackState> {
   final PlaybackEngine _playbackEngine;
@@ -29,11 +30,20 @@ class PlaybackBloc extends Bloc<PlaybackEvent, PlaybackState> {
   }
 
   Future<void> _onPlaybackStarted(PlaybackStarted event, Emitter<PlaybackState> emit) async {
+    if (AppConfig.isLicenseExpired()) {
+      emit(PlaybackLicenseExpired());
+      return;
+    }
     emit(PlaybackLoading());
     try {
       // 1. Fetch cached schedules from the local database
       final defaultLoop = await _isarService.getDefaultLoop();
       final priorityQueue = await _isarService.getPriorityQueue();
+
+      if (defaultLoop.isEmpty && priorityQueue.isEmpty) {
+        emit(PlaybackDeactivated());
+        return;
+      }
 
       // 2. Feed the schedules into the engine
       _playbackEngine.updateSchedules(
@@ -50,11 +60,19 @@ class PlaybackBloc extends Bloc<PlaybackEvent, PlaybackState> {
   }
 
   void _onPlaybackUrlUpdated(PlaybackUrlUpdated event, Emitter<PlaybackState> emit) {
+    if (AppConfig.isLicenseExpired()) {
+      emit(PlaybackLicenseExpired());
+      return;
+    }
     // Tell the presentation layer (WebView) what URL to load!
     emit(PlaybackPlaying(event.url));
   }
 
   Future<void> _onPlaybackSchedulesUpdated(PlaybackSchedulesUpdated event, Emitter<PlaybackState> emit) async {
+    if (AppConfig.isLicenseExpired()) {
+      emit(PlaybackLicenseExpired());
+      return;
+    }
     try {
       // In a full implementation, you'd trigger a REST request here, 
       // save the response via _isarService.saveScheduleItems(newItems), 
@@ -63,6 +81,11 @@ class PlaybackBloc extends Bloc<PlaybackEvent, PlaybackState> {
       // For now, we just reload whatever is currently in Isar:
       final defaultLoop = await _isarService.getDefaultLoop();
       final priorityQueue = await _isarService.getPriorityQueue();
+
+      if (defaultLoop.isEmpty && priorityQueue.isEmpty) {
+        emit(PlaybackDeactivated());
+        return;
+      }
 
       _playbackEngine.updateSchedules(
         defaultLoop: defaultLoop,

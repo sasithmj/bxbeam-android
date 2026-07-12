@@ -15,3 +15,7 @@ class PlaybackError extends PlaybackState {
 
   PlaybackError(this.message);
 }
+
+class PlaybackDeactivated extends PlaybackState {}
+
+class PlaybackLicenseExpired extends PlaybackState {}

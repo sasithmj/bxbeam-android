@@ -25,8 +25,13 @@ class PlaybackEngine {
     _defaultLoop = defaultLoop;
     _priorityQueue = priorityQueue;
     
+    if (defaultLoop.isEmpty && priorityQueue.isEmpty) {
+      _currentPlayingItem = null;
+      _currentItemStartTime = null;
+    }
+    
     // Start the ticker (1s interval) if not already running
-    _ticker ??= Timer.periodic(const Duration(seconds: 10), _onTick);
+    _ticker ??= Timer.periodic(const Duration(seconds: 1), _onTick);
   }
 
   void _onTick(Timer timer) {
@@ -36,9 +41,32 @@ class PlaybackEngine {
     ScheduleItem? activePriorityItem;
     for (final item in _priorityQueue) {
       if (item.startTime != null && item.isPriority) {
-        final endTime = item.startTime!.add(Duration(seconds: item.durationSeconds));
-        // If currentTime falls within the scheduled item's time range
-        if (now.isAfter(item.startTime!) && now.isBefore(endTime)) {
+        // Construct the start time window for today
+        final todayStart = DateTime(
+          now.year,
+          now.month,
+          now.day,
+          item.startTime!.hour,
+          item.startTime!.minute,
+          item.startTime!.second,
+        );
+        final todayEnd = todayStart.add(Duration(seconds: item.durationSeconds));
+
+        // Construct the start time window for yesterday (to handle midnight-crossing schedules)
+        final yesterdayStart = todayStart.subtract(const Duration(days: 1));
+        final yesterdayEnd = yesterdayStart.add(Duration(seconds: item.durationSeconds));
+
+        final isTodayActive = now.isAfter(todayStart) && now.isBefore(todayEnd);
+        final isYesterdayActive = now.isAfter(yesterdayStart) && now.isBefore(yesterdayEnd);
+
+        print("PRIORITY_CHECK: title='${item.title}', "
+              "originalStart='${item.startTime}', "
+              "todayStart='$todayStart', todayEnd='$todayEnd', "
+              "now='$now', "
+              "isTodayActive=$isTodayActive, isYesterdayActive=$isYesterdayActive");
+
+        // If currentTime falls within either the today or yesterday daily window
+        if (isTodayActive || isYesterdayActive) {
           activePriorityItem = item;
           break;
         }
