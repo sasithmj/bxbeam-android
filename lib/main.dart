@@ -9,6 +9,8 @@ import 'presentation/bloc/playback_bloc.dart';
 import 'presentation/bloc/playback_event.dart';
 import 'presentation/webview_container.dart';
 import 'presentation/registration_screen.dart';
+import 'core/config.dart';
+import 'presentation/license_expired_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -77,16 +79,19 @@ class MyApp extends StatelessWidget {
           colorScheme: ColorScheme.fromSeed(seedColor: const Color.fromARGB(255, 183, 58, 60)),
           useMaterial3: true,
         ),
-        // If registered, show WebView. Else, show Registration Screen.
-        home: isRegistered 
-            ? WebViewContainer(
-                apiService: apiService,
-                syncManager: syncManager,
-              ) 
-            : RegistrationScreen(
-                apiService: apiService, 
-                syncManager: syncManager,
-              ),
+        // If license is expired, block everything and show the LicenseExpiredScreen.
+        // Else, if registered show WebViewContainer, otherwise show RegistrationScreen.
+        home: AppConfig.isLicenseExpired()
+            ? const LicenseExpiredScreen()
+            : (isRegistered
+                ? WebViewContainer(
+                    apiService: apiService,
+                    syncManager: syncManager,
+                  )
+                : RegistrationScreen(
+                    apiService: apiService,
+                    syncManager: syncManager,
+                  )),
         debugShowCheckedModeBanner: false,
       ),
     );

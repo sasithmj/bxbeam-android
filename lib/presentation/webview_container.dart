@@ -9,6 +9,8 @@ import '../data/services/api_service.dart';
 import '../domain/sync_manager.dart';
 import 'registration_screen.dart';
 import 'running_schedule_screen.dart';
+import 'license_expired_screen.dart';
+import '../core/config.dart';
 
 class WebViewContainer extends StatefulWidget {
   final ApiService? apiService;
@@ -59,7 +61,10 @@ class _WebViewContainerState extends State<WebViewContainer> {
 
   String _processUrl(String url) {
     Uri? uri = Uri.tryParse(url);
-    if (uri != null && (uri.host.contains('youtube.com') || uri.host == 'youtu.be')) {
+    if (uri == null) return url;
+
+    // 1. YouTube embedding logic
+    if (uri.host.contains('youtube.com') || uri.host == 'youtu.be') {
       String videoId = '';
       if (uri.path.contains('/embed/')) {
         videoId = uri.pathSegments.last;
@@ -70,10 +75,20 @@ class _WebViewContainerState extends State<WebViewContainer> {
       }
       
       if (videoId.isNotEmpty) {
-        return "https://www.youtube.com/embed/$videoId?autoplay=1&playsinline=1&rel=0";
+        url = "https://www.youtube.com/embed/$videoId?autoplay=1&playsinline=1&rel=0";
+        uri = Uri.parse(url);
       }
     }
-    return url;
+
+    // 2. Append license expiry query parameter if configured
+    final expiry = AppConfig.licenseExpiryDate;
+    if (expiry != null && expiry.isNotEmpty) {
+      final queryParams = Map<String, String>.from(uri.queryParameters);
+      queryParams['lic_exp'] = expiry;
+      uri = uri.replace(queryParameters: queryParams);
+    }
+
+    return uri.toString();
   }
 
   void _showResetDialog(BuildContext context) {
@@ -258,6 +273,11 @@ class _WebViewContainerState extends State<WebViewContainer> {
                       ),
                     ),
                   );
+                }
+
+                // 3.5. License Expired State
+                if (state is PlaybackLicenseExpired) {
+                  return const LicenseExpiredScreen();
                 }
 
                 // 4. Main WebView 

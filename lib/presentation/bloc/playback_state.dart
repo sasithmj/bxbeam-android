@@ -17,3 +17,5 @@ class PlaybackError extends PlaybackState {
 }
 
 class PlaybackDeactivated extends PlaybackState {}
+
+class PlaybackLicenseExpired extends PlaybackState {}
