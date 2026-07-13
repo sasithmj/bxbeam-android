@@ -10,6 +10,7 @@ import 'presentation/bloc/playback_bloc.dart';
 import 'presentation/bloc/playback_event.dart';
 import 'presentation/webview_container.dart';
 import 'presentation/registration_screen.dart';
+import 'presentation/loading_screen.dart';
 import 'core/config.dart';
 import 'presentation/license_expired_screen.dart';
 
@@ -36,58 +37,92 @@ void main() async {
     DeviceOrientation.landscapeRight,
   ]);
 
-  // 1. Initialize Local DB
-  final isarService = IsarService();
-  await isarService.db; // Wait for DB to be ready
-
-  // 2. Initialize Playback Engine
-  final playbackEngine = PlaybackEngine();
-
-  // 3. Initialize BLoC
-  final playbackBloc = PlaybackBloc(
-    playbackEngine: playbackEngine,
-    isarService: isarService,
-  );
-  playbackBloc.add(PlaybackStarted());
-
-  // 4. Initialize API and SyncManager
-  final apiService = ApiService();
-  final syncManager = SyncManager(
-    apiService: apiService,
-    isarService: isarService,
-    playbackBloc: playbackBloc,
-  );
-  
-  // Wait for sync manager initialization to determine registration status
-  bool isRegistered = await syncManager.initialize();
-
-  // 5. Run App
-  runApp(MyApp(
-    playbackBloc: playbackBloc,
-    isRegistered: isRegistered,
-    apiService: apiService,
-    syncManager: syncManager,
-  ));
+  runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
-  final PlaybackBloc playbackBloc;
-  final bool isRegistered;
-  final ApiService apiService;
-  final SyncManager syncManager;
+class MyApp extends StatefulWidget {
+  const MyApp({super.key});
 
-  const MyApp({
-    super.key,
-    required this.playbackBloc,
-    required this.isRegistered,
-    required this.apiService,
-    required this.syncManager,
-  });
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  bool _isInitialized = false;
+  bool _isRegistered = false;
+  late ApiService _apiService;
+  late SyncManager _syncManager;
+  late PlaybackBloc _playbackBloc;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeServices();
+  }
+
+  Future<void> _initializeServices() async {
+    final startTime = DateTime.now();
+
+    try {
+      // 1. Initialize Local DB
+      final isarService = IsarService();
+      await isarService.db; // Wait for DB to be ready
+
+      // 2. Initialize Playback Engine
+      final playbackEngine = PlaybackEngine();
+
+      // 3. Initialize BLoC
+      _playbackBloc = PlaybackBloc(
+        playbackEngine: playbackEngine,
+        isarService: isarService,
+      );
+      _playbackBloc.add(PlaybackStarted());
+
+      // 4. Initialize API and SyncManager
+      _apiService = ApiService();
+      _syncManager = SyncManager(
+        apiService: _apiService,
+        isarService: isarService,
+        playbackBloc: _playbackBloc,
+      );
+      
+      // Wait for sync manager initialization to determine registration status
+      _isRegistered = await _syncManager.initialize();
+    } catch (e) {
+      debugPrint("Initialization error: $e");
+    }
+
+    // Ensure the premium splash screen is shown for at least 2.5 seconds for smooth animations
+    final elapsed = DateTime.now().difference(startTime);
+    final remaining = const Duration(milliseconds: 2500) - elapsed;
+    if (remaining > Duration.zero) {
+      await Future.delayed(remaining);
+    }
+
+    if (mounted) {
+      setState(() {
+        _isInitialized = true;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (!_isInitialized) {
+      return MaterialApp(
+        title: 'BxBeam',
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(seedColor: const Color.fromARGB(255, 183, 58, 60)),
+          useMaterial3: true,
+          scaffoldBackgroundColor: const Color(0xFF0F0F1A),
+        ),
+        home: const LoadingScreen(),
+        debugShowCheckedModeBanner: false,
+      );
+    }
+
     return BlocProvider.value(
-      value: playbackBloc,
+      value: _playbackBloc,
       child: MaterialApp(
         title: 'BxBeam',
         theme: ThemeData(
@@ -98,14 +133,14 @@ class MyApp extends StatelessWidget {
         // Else, if registered show WebViewContainer, otherwise show RegistrationScreen.
         home: AppConfig.isLicenseExpired()
             ? const LicenseExpiredScreen()
-            : (isRegistered
+            : (_isRegistered
                 ? WebViewContainer(
-                    apiService: apiService,
-                    syncManager: syncManager,
+                    apiService: _apiService,
+                    syncManager: _syncManager,
                   )
                 : RegistrationScreen(
-                    apiService: apiService,
-                    syncManager: syncManager,
+                    apiService: _apiService,
+                    syncManager: _syncManager,
                   )),
         debugShowCheckedModeBanner: false,
       ),

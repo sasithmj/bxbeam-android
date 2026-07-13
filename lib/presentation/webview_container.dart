@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'bloc/playback_bloc.dart';
 import 'bloc/playback_state.dart';
 import '../data/services/api_service.dart';
@@ -32,6 +33,8 @@ class _WebViewContainerState extends State<WebViewContainer> {
   String? currentUrl;
   bool _showMenuButton = false;
   Timer? _menuHideTimer;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
+  bool _isOffline = false;
 
   @override
   void initState() {
@@ -39,6 +42,29 @@ class _WebViewContainerState extends State<WebViewContainer> {
     // Check and request overlay permission after the screen renders
     WidgetsBinding.instance.addPostFrameCallback((_) {
       OverlayPermissionHelper.checkAndPrompt(context);
+    });
+
+    // Listen to network connectivity changes
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen((List<ConnectivityResult> results) {
+      final isNowOffline = results.contains(ConnectivityResult.none);
+      if (isNowOffline != _isOffline) {
+        setState(() {
+          _isOffline = isNowOffline;
+        });
+        
+        if (isNowOffline) {
+          debugPrint("Network connection dropped. Pausing sync loop...");
+          widget.syncManager?.dispose(); // Cancels the active refresh timer
+        } else {
+          debugPrint("Network connection restored. Restarting schedules...");
+          SharedPreferences.getInstance().then((prefs) {
+            final screenId = prefs.getString('screen_id');
+            if (screenId != null && screenId.isNotEmpty) {
+              widget.syncManager?.setScreenIdAndStart(screenId);
+            }
+          });
+        }
+      }
     });
   }
 
@@ -64,6 +90,7 @@ class _WebViewContainerState extends State<WebViewContainer> {
 
   @override
   void dispose() {
+    _connectivitySubscription?.cancel();
     _menuHideTimer?.cancel();
     webViewController = null;
     super.dispose();
@@ -262,25 +289,79 @@ class _WebViewContainerState extends State<WebViewContainer> {
 
                 // 3. Deactivated State
                 if (state is PlaybackDeactivated) {
-                  return const Center(
-                    child: SingleChildScrollView(
-                      child: Padding(
-                        padding: EdgeInsets.all(24.0),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.lock_clock, size: 64, color: Colors.amber),
-                            SizedBox(height: 16),
-                            Text(
-                              'Device deactivated. Contact admin to activate this screen.',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
+                  return const Scaffold(
+                    backgroundColor: Color(0xFF0F0F1A),
+                    body: Center(
+                      child: SingleChildScrollView(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 32.0, vertical: 24.0),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.lock_outline_rounded,
+                                size: 72,
+                                color: Color(0xFFCF6679),
                               ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
+                              SizedBox(height: 24),
+                              Text(
+                                'Screen Inactive',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1.0,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                              SizedBox(height: 12),
+                              Text(
+                                'This display has been deactivated. Please contact your system administrator to authorize and activate this device.',
+                                style: TextStyle(
+                                  color: Colors.white54,
+                                  fontSize: 14,
+                                  height: 1.5,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                              SizedBox(height: 32),
+                              // Translucent Red Status Indicator Pill
+                              DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: Color(0x1ACF6679),
+                                  borderRadius: BorderRadius.all(Radius.circular(20)),
+                                  border: Border.fromBorderSide(
+                                    BorderSide(color: Color(0x33CF6679), width: 1),
+                                  ),
+                                ),
+                                child: Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      DecoratedBox(
+                                        decoration: BoxDecoration(
+                                          color: Color(0xFFCF6679),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: SizedBox(width: 8, height: 8),
+                                      ),
+                                      SizedBox(width: 8),
+                                      Text(
+                                        'DEACTIVATED',
+                                        style: TextStyle(
+                                          color: Color(0xFFCF6679),
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w800,
+                                          letterSpacing: 1.5,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -382,6 +463,87 @@ class _WebViewContainerState extends State<WebViewContainer> {
                         ),
                       ),
                     ],
+                  ),
+                ),
+              ),
+            
+            // Connection Dropped / Offline Overlay Screen
+            if (_isOffline)
+              Positioned.fill(
+                child: Scaffold(
+                  backgroundColor: const Color(0xFF0F0F1A),
+                  body: Center(
+                    child: SingleChildScrollView(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 24.0),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.wifi_off_rounded,
+                              size: 80,
+                              color: Color(0xFFFFB300), // Amber
+                            ),
+                            const SizedBox(height: 24),
+                            const Text(
+                              'Connection Dropped',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1.0,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 12),
+                            const Text(
+                              'Please check your network settings. Normal display operation and schedules will automatically resume once the connection is restored.',
+                              style: TextStyle(
+                                color: Colors.white54,
+                                fontSize: 14,
+                                height: 1.5,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 36),
+                            // Translucent Reconnecting Indicator Pill
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                              decoration: const BoxDecoration(
+                                color: Color(0x1AFFB300),
+                                borderRadius: BorderRadius.all(Radius.circular(20)),
+                                border: Border.fromBorderSide(
+                                  BorderSide(color: Color(0x33FFB300), width: 1),
+                                ),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  SizedBox(
+                                    width: 12,
+                                    height: 12,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.0,
+                                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFFB300)),
+                                    ),
+                                  ),
+                                  SizedBox(width: 12),
+                                  Text(
+                                    'RECONNECTING...',
+                                    style: TextStyle(
+                                      color: Color(0xFFFFB300),
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 1.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ),
