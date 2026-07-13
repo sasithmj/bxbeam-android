@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:auto_start_flutter/auto_start_flutter.dart';
 import 'data/services/isar_service.dart';
 import 'domain/playback_engine.dart';
 import 'data/services/api_service.dart';
@@ -12,8 +13,22 @@ import 'presentation/registration_screen.dart';
 import 'core/config.dart';
 import 'presentation/license_expired_screen.dart';
 
+@pragma('vm:entry-point')
+void myBootCallback() {
+  WidgetsFlutterBinding.ensureInitialized();
+  debugPrint("Boot Callback execution triggered! The device just booted.");
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Register auto-start boot callback
+  try {
+    bool success = await registerBootCallback(myBootCallback);
+    debugPrint("Boot callback registration status: $success");
+  } catch (e) {
+    debugPrint("Failed to register boot callback: $e");
+  }
   
   // Set preferred orientation to landscape
   await SystemChrome.setPreferredOrientations([

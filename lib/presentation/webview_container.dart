@@ -11,6 +11,7 @@ import 'registration_screen.dart';
 import 'running_schedule_screen.dart';
 import 'license_expired_screen.dart';
 import '../core/config.dart';
+import '../core/overlay_permission_helper.dart';
 
 class WebViewContainer extends StatefulWidget {
   final ApiService? apiService;
@@ -31,6 +32,15 @@ class _WebViewContainerState extends State<WebViewContainer> {
   String? currentUrl;
   bool _showMenuButton = false;
   Timer? _menuHideTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    // Check and request overlay permission after the screen renders
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      OverlayPermissionHelper.checkAndPrompt(context);
+    });
+  }
 
   void _toggleMenuButton() {
     setState(() {
@@ -253,23 +263,25 @@ class _WebViewContainerState extends State<WebViewContainer> {
                 // 3. Deactivated State
                 if (state is PlaybackDeactivated) {
                   return const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(24.0),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.lock_clock, size: 64, color: Colors.amber),
-                          SizedBox(height: 16),
-                          Text(
-                            'Device deactivated. Contact admin to activate this screen.',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
+                    child: SingleChildScrollView(
+                      child: Padding(
+                        padding: EdgeInsets.all(24.0),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.lock_clock, size: 64, color: Colors.amber),
+                            SizedBox(height: 16),
+                            Text(
+                              'Device deactivated. Contact admin to activate this screen.',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.center,
                             ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   );

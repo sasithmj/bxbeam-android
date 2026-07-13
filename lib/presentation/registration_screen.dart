@@ -3,10 +3,12 @@ import 'dart:io';
 import 'dart:async';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:auto_start_flutter/auto_start_flutter.dart';
 import '../data/services/api_service.dart';
 import '../domain/sync_manager.dart';
 import '../data/models/dto/device_dto.dart';
 import '../data/models/dto/plant_code_dto.dart';
+import '../core/overlay_permission_helper.dart';
 import 'webview_container.dart';
 
 class RegistrationScreen extends StatefulWidget {
@@ -42,6 +44,27 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     super.initState();
     _macController.addListener(_onMacAddressChanged);
     _loadInitialData();
+    initAutoStart();
+    
+    // Check and request overlay permission after the screen renders
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      OverlayPermissionHelper.checkAndPrompt(context);
+    });
+  }
+
+  Future<void> initAutoStart() async {
+    try {
+      // Check auto-start availability.
+      var isAvailable = (await isAutoStartAvailable) ?? false;
+      debugPrint("Auto start available: $isAvailable");
+      // If available then navigate to auto-start setting page.
+      if (isAvailable) {
+         bool success = await getAutoStartPermission();
+         debugPrint("Auto start permission open success: $success");
+      }
+    } catch (e) {
+      debugPrint("Failed to initialize auto-start setting: $e");
+    }
   }
 
   void _onMacAddressChanged() {
