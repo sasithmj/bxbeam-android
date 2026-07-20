@@ -4,6 +4,7 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   auto_start_flutter
+  connectivity_plus
   flutter_inappwebview_windows
   isar_flutter_libs
 )
