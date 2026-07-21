@@ -150,7 +150,10 @@ bool Win32Window::Create(const std::wstring& title,
 }
 
 bool Win32Window::Show() {
-  return ShowWindow(window_handle_, SW_SHOWNORMAL);
+  SetWindowLongPtr(window_handle_, GWL_STYLE, WS_POPUP | WS_VISIBLE);
+  SetWindowPos(window_handle_, nullptr, 0, 0, 0, 0,
+               SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+  return ShowWindow(window_handle_, SW_MAXIMIZE);
 }
 
 // static

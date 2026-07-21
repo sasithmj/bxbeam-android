@@ -7,12 +7,12 @@ import '../models/dto/plant_code_dto.dart';
 import '../models/dto/schedule_dto.dart';
 
 class ApiService {
-  // static const String _baseUrl =
-  //     'http://bdxdisplayapp.somee.com/api/app_data.asmx';
   static const String _baseUrl =
-      'http://10.76.152.20/display/api/app_data.asmx';
+      'http://bdxdisplayapp.somee.com/api/app_data.asmx';
+  // static const String _baseUrl =
+  //     'http://10.76.152.20/display/api/app_data.asmx';
   static const String _apiKey = 'yFlMjSup.IbHOCjyRiTb8QOO9Ltsbr';
-  static const String _skey =
+  static const String _appkey =
       '9c4572c4e6ce5ac08292f1b8affad147794d8a9ad55b2b3f08ae2fa15868ec5f';
   static const String _namespace = 'http://www.ddacode.lk/';
 
@@ -22,7 +22,7 @@ class ApiService {
 <soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
   <soap:Body>
     <$operation xmlns="$_namespace">
-      <skey>$_skey</skey>
+      <Appkey>$_appkey</Appkey>
 $bodyContent
     </$operation>
   </soap:Body>

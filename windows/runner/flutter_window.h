@@ -22,12 +22,17 @@ class FlutterWindow : public Win32Window {
   LRESULT MessageHandler(HWND window, UINT const message, WPARAM const wparam,
                          LPARAM const lparam) noexcept override;
 
+  // Toggles between borderless fullscreen kiosk mode and windowed mode with title bar.
+  void ToggleFullScreen();
+
  private:
   // The project to run.
   flutter::DartProject project_;
 
   // The Flutter instance hosted by this window.
   std::unique_ptr<flutter::FlutterViewController> flutter_controller_;
+
+  bool is_fullscreen_ = true;
 };
 
 #endif  // RUNNER_FLUTTER_WINDOW_H_

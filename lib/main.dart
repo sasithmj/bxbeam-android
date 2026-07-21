@@ -58,6 +58,21 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
     _initializeServices();
+    HardwareKeyboard.instance.addHandler(_handleKeyEvent);
+  }
+
+  @override
+  void dispose() {
+    HardwareKeyboard.instance.removeHandler(_handleKeyEvent);
+    super.dispose();
+  }
+
+  bool _handleKeyEvent(KeyEvent event) {
+    if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.escape) {
+      const MethodChannel('com.example.bxbeam/window').invokeMethod('toggleFullScreen');
+      return true;
+    }
+    return false;
   }
 
   Future<void> _initializeServices() async {
