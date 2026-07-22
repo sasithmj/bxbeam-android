@@ -45,7 +45,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     _macController.addListener(_onMacAddressChanged);
     _loadInitialData();
     initAutoStart();
-    
+
     // Check and request overlay permission after the screen renders
     WidgetsBinding.instance.addPostFrameCallback((_) {
       OverlayPermissionHelper.checkAndPrompt(context);
@@ -59,8 +59,8 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       debugPrint("Auto start available: $isAvailable");
       // If available then navigate to auto-start setting page.
       if (isAvailable) {
-         bool success = await getAutoStartPermission();
-         debugPrint("Auto start permission open success: $success");
+        bool success = await getAutoStartPermission();
+        debugPrint("Auto start permission open success: $success");
       }
     } catch (e) {
       debugPrint("Failed to initialize auto-start setting: $e");
@@ -77,18 +77,27 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   Future<void> _checkIfRegistered(String mac) async {
     if (mac.trim().isEmpty) return;
     try {
-      final existingDevices = await widget.apiService.getRegisteredDevice(mac.trim());
+      final existingDevices = await widget.apiService.getRegisteredDevice(
+        mac.trim(),
+      );
       if (existingDevices.isNotEmpty) {
         final device = existingDevices.first;
         setState(() {
           _nameController.text = device.scrName;
           _locationController.text = device.scrLoc;
           _ipController.text = device.ipAddress;
-          
-          if (_plantCodes.any((element) => element.plantCode == device.plantCode)) {
+
+          if (_plantCodes.any(
+            (element) => element.plantCode == device.plantCode,
+          )) {
             _selectedPlantCode = device.plantCode;
           } else {
-            _plantCodes.add(PlantCodeDto(plantCode: device.plantCode, plantName: device.plantCode));
+            _plantCodes.add(
+              PlantCodeDto(
+                plantCode: device.plantCode,
+                plantName: device.plantCode,
+              ),
+            );
             _selectedPlantCode = device.plantCode;
           }
           _isAlreadyRegistered = true;
@@ -280,11 +289,12 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                         const SizedBox(height: 24),
                         TextFormField(
                           controller: _macController,
-                          enabled: true,
+                          enabled: false,
                           decoration: const InputDecoration(
                             labelText: 'Device Identifier',
                             border: OutlineInputBorder(),
-                            helperText: 'Enter custom ID or use the generated BX ID',
+                            helperText:
+                                'Enter custom ID or use the generated BX ID',
                             helperStyle: TextStyle(color: Colors.green),
                           ),
                           validator: (value) => value == null || value.isEmpty
@@ -378,7 +388,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                                   ),
                                 )
                               : Text(
-                                  _isAlreadyRegistered ? 'Login & Start' : 'Register & Start',
+                                  _isAlreadyRegistered
+                                      ? 'Login & Start'
+                                      : 'Register & Start',
                                   style: const TextStyle(fontSize: 16),
                                 ),
                         ),
