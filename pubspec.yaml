@@ -109,3 +109,6 @@ flutter_launcher_icons:
   ios: true
   remove_alpha_ios: true
   image_path: "lib/assets/icon.png"
+  windows:
+    generate: true
+    image_path: "lib/assets/icon.png"
